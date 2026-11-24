@@ -1,0 +1,17 @@
+{
+  "name": "apk-builder-desktop",
+  "version": "1.0.0",
+  "description": "APK & EXE Maker",
+  "main": "main.js",
+  "scripts": { "start": "electron .", "dist": "electron-builder --win portable --x64" },
+  "devDependencies": { "electron": "33.2.1", "electron-builder": "25.1.8" },
+  "build": {
+    "appId": "com.apkbuilder.desktop",
+    "productName": "APKMaker",
+    "files": ["main.js"],
+    "extraResources": [{ "from": "../.next/standalone", "to": "server" }],
+    "win": { "target": "portable" },
+    "portable": { "artifactName": "APKMaker.exe" },
+    "directories": { "output": "dist" }
+  }
+}

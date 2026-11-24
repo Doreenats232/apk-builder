@@ -1,0 +1,72 @@
+name: Build APK and EXE
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.9" }
+      - name: Accept Android licenses (SDK is preinstalled on the runner)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Build debug APK
+        working-directory: android-client
+        run: gradle assembleDebug --no-daemon
+      - name: Name the APK
+        run: cp android-client/app/build/outputs/apk/debug/app-debug.apk APKMaker.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: APKMaker-apk, path: APKMaker.apk }
+
+  desktop-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build the web app (standalone server)
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+          node scripts/prepare-desktop.js
+      - name: Package desktop app
+        shell: bash
+        working-directory: desktop
+        run: |
+          npm install
+          npm run dist
+          test -f dist/win-unpacked/resources/server/server.js
+          test -d dist/win-unpacked/resources/server/node_modules/next
+      - uses: actions/upload-artifact@v4
+        with: { name: APKMaker-exe, path: desktop/dist/APKMaker.exe }
+
+  release:
+    needs: [android-apk, desktop-exe]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Move the "latest" tag to this commit
+        run: |
+          git tag -f latest
+          git push -f origin latest
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: APK & EXE Maker (latest build)
+          make_latest: true
+          body: |
+            **APKMaker.exe** – Windows app (runs the builder on your PC)
+            **APKMaker.apk** – Android remote (upload zips from your phone to your PC)
+          files: |
+            out/APKMaker.exe
+            out/APKMaker.apk
